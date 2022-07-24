@@ -36,6 +36,18 @@ builder.Services.AddSingleton<IMongoClient, MongoClient>(s =>
     return new MongoClient(connectionString);
 });
 
+var MyAllowSpecificOrigins = "_myAllowSpecificOrigins";
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy(name: MyAllowSpecificOrigins,
+        policy =>
+        {
+            policy.WithOrigins("*");
+            policy.WithHeaders("*");
+            policy.WithMethods("*");
+        });
+});
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
@@ -50,6 +62,8 @@ app.UseHttpsRedirection();
 app.UseAuthorization();
 
 app.UseAuthentication();
+
+app.UseCors(MyAllowSpecificOrigins);
 
 app.MapControllers();
 

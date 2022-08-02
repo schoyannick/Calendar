@@ -1,7 +1,9 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.IdentityModel.Tokens;
 using MongoDB.Driver;
 using System.Text;
+using WebApplication1.Utils;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -23,11 +25,23 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJw
         ValidateAudience = true,
         ValidateIssuer = true,
         ValidateIssuerSigningKey = true,
-        ValidateActor = true,
         ValidIssuer = issuer,
         ValidAudience = audience,
         IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key))
     };
+});
+
+builder.Services.AddScoped<IAuthHelper, AuthHelper>();
+
+builder.Services.AddAuthorization(options =>
+{
+    var defaultAuthorizationPolicyBuilder = new AuthorizationPolicyBuilder(
+        JwtBearerDefaults.AuthenticationScheme);
+
+    defaultAuthorizationPolicyBuilder =
+        defaultAuthorizationPolicyBuilder.RequireAuthenticatedUser();
+
+    options.DefaultPolicy = defaultAuthorizationPolicyBuilder.Build();
 });
 
 string connectionString = new ConfigurationBuilder().AddJsonFile("appsettings.json").Build().GetSection("ConnectionStrings")["MongoDB"];
@@ -62,6 +76,8 @@ app.UseHttpsRedirection();
 app.UseAuthorization();
 
 app.UseAuthentication();
+
+app.MapDefaultControllerRoute();
 
 app.UseCors(MyAllowSpecificOrigins);
 

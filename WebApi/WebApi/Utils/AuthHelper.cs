@@ -46,7 +46,8 @@ namespace WebApplication1.Utils
 
             var claims = new[]
             {
-                new Claim("Username", user.Username)
+                new Claim("Username", user.Username),
+                new Claim("UserId", user.Id)
             };
 
             string issuer = _config.GetSection("jwt").GetSection("Issuer").Value;
@@ -69,6 +70,7 @@ namespace WebApplication1.Utils
 
             var user = new User()
             {
+                Id = apiUser.First().Id,
                 Username = apiUser.First().Username,
                 Password = apiUser.First().Password,
             };
@@ -78,6 +80,8 @@ namespace WebApplication1.Utils
 
         public async Task<RefreshToken> GenerateRefreshToken(string userId)
         {
+            await RevokeAllRefreshToken(userId);
+
             var refreshToken = new RefreshToken
             {
                 Token = Convert.ToBase64String(RandomNumberGenerator.GetBytes(64)),
@@ -117,16 +121,48 @@ namespace WebApplication1.Utils
             return null;
         }
 
-        async public Task<TokenResult> Authenticate(Claim[] claims)
+        public async Task RevokeAllRefreshToken(string userId)
         {
-            string key = _config.GetSection("jwt").GetSection("Key").Value;
-            var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key));
-            var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
-            var jwtSecurityToken = new JwtSecurityToken(claims: claims, expires: DateTime.Now.AddMinutes(10), signingCredentials: credentials);
+            var userBuilder = Builders<RefreshTokenDb>.Filter;
+            var userIdFilter = userBuilder.Eq("UserId", userId);
+            await _refreshToken.DeleteManyAsync(userIdFilter);
+        }
 
-            var token = new JwtSecurityTokenHandler().WriteToken(jwtSecurityToken);
+        public async Task<TokenResult> RefreshToken(TokenResult tokenResult)
+        {
+            try
+            {
+                var builder = Builders<RefreshTokenDb>.Filter;
+                var filter = builder.Eq("Token", tokenResult.RefreshToken);
+                var refreshTokenDb = await _refreshToken.FindAsync(filter);
 
-            var refreshToken = await GenerateRefreshToken("");
+                if (refreshTokenDb.First().Token != tokenResult.RefreshToken)
+                {
+                    throw new SecurityTokenException("Token is invalid.");
+                }
+            }
+            catch (Exception)
+            {
+                throw new SecurityTokenException("Token is invalid.");
+            }
+
+
+            var handler = new JwtSecurityTokenHandler();
+            var jwtSecurityToken = handler.ReadJwtToken(tokenResult.Token);
+            var username = jwtSecurityToken.Claims.First(claim => claim.Type == "Username").Value;
+            var userId = jwtSecurityToken.Claims.First(claim => claim.Type == "UserId").Value;
+
+            var user = new User
+            {
+                Id = userId,
+                Username = username
+            };
+
+            await RevokeAllRefreshToken(user.Id);
+
+            var token = GenerateJwtToken(user);
+
+            var refreshToken = await GenerateRefreshToken(user.Id);
 
             var result = new TokenResult
             {
@@ -135,50 +171,6 @@ namespace WebApplication1.Utils
             };
 
             return result;
-        }
-
-        public async Task<string> RefreshToken(TokenResult tokenResult)
-        {
-            string key = _config.GetSection("jwt").GetSection("Key").Value;
-            string issuer = _config.GetSection("jwt").GetSection("Issuer").Value;
-            string audience = _config.GetSection("jwt").GetSection("Audience").Value;
-
-            var tokenHandler = new JwtSecurityTokenHandler();
-            SecurityToken validatedToken;
-            var principal = tokenHandler.ValidateToken(tokenResult.Token,
-                new TokenValidationParameters
-                {
-                    ValidateAudience = true,
-                    ValidateIssuer = true,
-                    ValidateIssuerSigningKey = true,
-                    ValidIssuer = issuer,
-                    ValidAudience = audience,
-                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key))
-                }, out validatedToken);
-            var jwtToken = validatedToken as JwtSecurityToken;
-
-            if (jwtToken == null || !jwtToken.Header.Alg.Equals(SecurityAlgorithms.HmacSha256))
-            {
-                throw new SecurityTokenException("Token is invalid.");
-            }
-
-            var builder = Builders<RefreshTokenDb>.Filter;
-            var filter = builder.Eq("Token", tokenResult.RefreshToken);
-            var refreshTokenDb = (await _refreshToken.FindAsync(filter)).First();
-            if (refreshTokenDb.Token != tokenResult.RefreshToken)
-            {
-                throw new SecurityTokenException("Token is invalid.");
-            }
-
-            //var user = GetUserByUsername()
-
-            //return GenerateJwtToken(user);
-            return "10";
-        }
-
-        public User? GetUserById(string id)
-        {
-            throw new NotImplementedException();
         }
     }
 }

@@ -101,26 +101,19 @@ namespace WebApplication1.Controllers
         }
 
         [HttpPost("/refresh")]
-        public IActionResult Refresh([FromBody] TokenResult tokenResult)
+        public async Task<IActionResult> Refresh([FromBody] TokenResult tokenResult)
         {
             try
             {
-                var token = _authHelper.RefreshToken(tokenResult);
+                var result = await _authHelper.RefreshToken(tokenResult);
 
-                return Ok(token);
+                return Ok(result);
             }
-            catch (Exception e)
+            catch (Exception)
             {
-                return BadRequest(e);
+                return BadRequest("Failed to refresh token");
             }
 
-        }
-
-        [HttpGet("/pog")]
-        [Authorize]
-        public IActionResult Pog()
-        {
-            return Ok("Pog");
         }
     }
 }

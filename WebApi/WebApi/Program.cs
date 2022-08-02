@@ -14,9 +14,22 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-string key = new ConfigurationBuilder().AddJsonFile("appsettings.json").Build().GetSection("jwt")["Key"];
-string audience = new ConfigurationBuilder().AddJsonFile("appsettings.json").Build().GetSection("jwt")["Audience"];
-string issuer = new ConfigurationBuilder().AddJsonFile("appsettings.json").Build().GetSection("jwt")["Issuer"];
+var env = builder.Environment;
+string key = new ConfigurationBuilder()
+    .AddJsonFile("appsettings.json")
+    .AddJsonFile($"appsettings.{env.EnvironmentName}.json")
+    .Build()
+    .GetSection("jwt")["Key"];
+string audience = new ConfigurationBuilder()
+    .AddJsonFile("appsettings.json")
+    .AddJsonFile($"appsettings.{env.EnvironmentName}.json")
+    .Build()
+    .GetSection("jwt")["Audience"];
+string issuer = new ConfigurationBuilder()
+    .AddJsonFile("appsettings.json")
+    .AddJsonFile($"appsettings.{env.EnvironmentName}.json")
+    .Build()
+    .GetSection("jwt")["Issuer"];
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(options =>
 {
@@ -44,7 +57,11 @@ builder.Services.AddAuthorization(options =>
     options.DefaultPolicy = defaultAuthorizationPolicyBuilder.Build();
 });
 
-string connectionString = new ConfigurationBuilder().AddJsonFile("appsettings.json").Build().GetSection("ConnectionStrings")["MongoDB"];
+string connectionString = new ConfigurationBuilder()
+    .AddJsonFile("appsettings.json")
+    .AddJsonFile($"appsettings.{env.EnvironmentName}.json")
+    .Build()
+    .GetSection("ConnectionStrings")["MongoDB"];
 builder.Services.AddSingleton<IMongoClient, MongoClient>(s =>
 {
     return new MongoClient(connectionString);
